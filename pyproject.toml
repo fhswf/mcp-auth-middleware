@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-auth-middleware"
+version = "0.1.0"
+description = "JWE authentication middleware for MCP/Starlette applications"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+authors = [
+    { name = "Aurel Bartmann" },
+]
+keywords = ["mcp", "jwe", "jwks", "authentication", "middleware", "starlette"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Security",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "python-jose[cryptography]>=3.5.0",
+    "starlette>=0.52.1",
+    "jwcrypto>=1.5.6",
+]
+
+[project.scripts]
+mcp-auth-middleware = "mcp_auth_middleware.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/fhswf/mcp-auth-middleware"
+Documentation = "https://github.com/fhswf/mcp-auth-middleware#readme"
+Repository = "https://github.com/fhswf/mcp-auth-middleware"
+Issues = "https://github.com/fhswf/mcp-auth-middleware/issues"
+
+[tool.setuptools.packages.find]
+include = ["mcp_auth_middleware*"]

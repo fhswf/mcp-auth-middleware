@@ -1,0 +1,32 @@
+# Keys - never commit
+.keys/
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Environments
+.env
+.envrc
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Type checking / linting
+.mypy_cache/
+.ruff_cache/
