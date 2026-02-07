@@ -242,6 +242,25 @@ POST /mcp/tool  ─────────────────────�
 
 ---
 
+---
+
+## Accessing the JWKS endpoint from a browser
+
+If your token producer is a browser-based application that needs to fetch the public key from `/.well-known/jwks.json`, you must add CORS middleware **after** `JWKSAuthMiddleware`. Starlette applies middleware in reverse registration order, so the last one added runs first on incoming requests — this ensures CORS headers are set before auth is checked.
+```python
+from mcp_auth_middleware import JWKSAuthMiddleware
+from starlette.middleware.cors import CORSMiddleware
+
+app = mcp.http_app()
+app.add_middleware(JWKSAuthMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # restrict to your domain(s) in production 
+)
+```
+
+Without this, browsers will block the cross-origin request to the JWKS endpoint due to the same-origin policy.
+
 ## Project structure
 
 ```
