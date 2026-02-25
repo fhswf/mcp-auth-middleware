@@ -21,6 +21,23 @@ This installs the library **and** the `mcp-auth-middleware` CLI.
 
 ---
 
+## Testing
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e .
+pytest --cov=mcp_auth_middleware --cov-report=term-missing --cov-fail-under=80
+```
+
+To generate an HTML coverage report:
+
+```bash
+pytest --cov=mcp_auth_middleware --cov-report=html
+```
+
+The report is written to `htmlcov/index.html`.
+
+---
+
 ## Quick start (local development)
 
 ### 1. Generate keys
