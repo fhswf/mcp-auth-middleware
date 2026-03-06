@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any
 
 from jose import jwe
@@ -20,7 +21,7 @@ class JWETokenVerifier:
             logger.info("JWE key loaded successfully (kid=%s, kty=%s)", kid, kty)
         else:
             logger.warning(
-                "No JWE key configured — token verification is disabled. "
+                "No JWE key configured - token verification is disabled. "
                 "Set MCP_KEY_FILE_PATH to enable authentication."
             )
 
@@ -58,14 +59,20 @@ class JWETokenVerifier:
 
     async def verify_token(self, token: str) -> dict[str, Any] | None:
         if not self._jwk:
-            logger.debug("Skipping token verification — no key configured")
+            logger.debug("Skipping token verification - no key configured")
             return None
 
         try:
             decrypted = jwe.decrypt(token, self._jwk)
             payload = json.loads(decrypted)
+            claims = payload.get("data", payload)
+            if not isinstance(claims, dict):
+                logger.debug("Token payload is not a JSON object")
+                return None
+            if not self._has_valid_timestamps(claims):
+                return None
             logger.debug("Token verified successfully")
-            return payload.get("data", payload)
+            return claims
         except json.JSONDecodeError as e:
             logger.debug("Token decrypted but payload is not valid JSON: %s", e)
             return None
@@ -73,9 +80,27 @@ class JWETokenVerifier:
             logger.debug("Token decryption detail: %s", e)
             return None
 
+    @staticmethod
+    def _has_valid_timestamps(claims: dict[str, Any]) -> bool:
+        exp = claims.get("exp")
+        iat = claims.get("iat")
+        if not isinstance(exp, int | float) or not isinstance(iat, int | float):
+            logger.debug("Token missing numeric exp/iat claims")
+            return False
+
+        now = time.time()
+        if iat > now:
+            logger.debug("Token rejected because iat is in the future")
+            return False
+        if exp <= now:
+            logger.debug("Token rejected because exp is in the past")
+            return False
+
+        return True
+
     def get_jwks(self) -> dict[str, Any]:
         if not self._jwk:
-            logger.debug("JWKS requested but no key is configured — returning empty key set")
+            logger.debug("JWKS requested but no key is configured - returning empty key set")
             return {"keys": []}
 
         public_fields = {"kty", "kid", "alg", "use", "n", "e"}
