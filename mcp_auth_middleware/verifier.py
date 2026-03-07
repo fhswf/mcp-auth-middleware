@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import time
 from typing import Any
 
 from jose import jwe
@@ -69,8 +68,6 @@ class JWETokenVerifier:
             if not isinstance(claims, dict):
                 logger.debug("Token payload is not a JSON object")
                 return None
-            if not self._has_valid_timestamps(claims):
-                return None
             logger.debug("Token verified successfully")
             return claims
         except json.JSONDecodeError as e:
@@ -79,24 +76,6 @@ class JWETokenVerifier:
         except Exception as e:
             logger.debug("Token decryption detail: %s", e)
             return None
-
-    @staticmethod
-    def _has_valid_timestamps(claims: dict[str, Any]) -> bool:
-        exp = claims.get("exp")
-        iat = claims.get("iat")
-        if not isinstance(exp, int | float) or not isinstance(iat, int | float):
-            logger.debug("Token missing numeric exp/iat claims")
-            return False
-
-        now = time.time()
-        if iat > now:
-            logger.debug("Token rejected because iat is in the future")
-            return False
-        if exp <= now:
-            logger.debug("Token rejected because exp is in the past")
-            return False
-
-        return True
 
     def get_jwks(self) -> dict[str, Any]:
         if not self._jwk:

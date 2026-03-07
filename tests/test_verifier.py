@@ -70,7 +70,6 @@ def test_verifier_loads_first_jwks_key_and_filters_public_fields(monkeypatch) ->
 
 def test_verify_token_returns_claims(monkeypatch) -> None:
     monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setattr(verifier_module.time, "time", lambda: 1_000)
 
     verifier = JWETokenVerifier()
 
@@ -82,9 +81,8 @@ def test_verify_token_returns_claims(monkeypatch) -> None:
     assert asyncio.run(verifier.verify_token("token")) == {"sub": "123", "iat": 900, "exp": 1100}
 
 
-def test_verify_token_rejects_missing_timestamps(monkeypatch) -> None:
+def test_verify_token_accepts_missing_timestamps(monkeypatch) -> None:
     monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setattr(verifier_module.time, "time", lambda: 1_000)
 
     verifier = JWETokenVerifier()
 
@@ -93,12 +91,11 @@ def test_verify_token_rejects_missing_timestamps(monkeypatch) -> None:
 
     monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
 
-    assert asyncio.run(verifier.verify_token("token")) is None
+    assert asyncio.run(verifier.verify_token("token")) == {"sub": "123"}
 
 
-def test_verify_token_rejects_future_iat(monkeypatch) -> None:
+def test_verify_token_accepts_future_iat(monkeypatch) -> None:
     monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setattr(verifier_module.time, "time", lambda: 1_000)
 
     verifier = JWETokenVerifier()
 
@@ -107,12 +104,11 @@ def test_verify_token_rejects_future_iat(monkeypatch) -> None:
 
     monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
 
-    assert asyncio.run(verifier.verify_token("token")) is None
+    assert asyncio.run(verifier.verify_token("token")) == {"sub": "123", "iat": 1001, "exp": 1100}
 
 
-def test_verify_token_rejects_expired_token(monkeypatch) -> None:
+def test_verify_token_accepts_expired_token(monkeypatch) -> None:
     monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setattr(verifier_module.time, "time", lambda: 1_000)
 
     verifier = JWETokenVerifier()
 
@@ -121,7 +117,7 @@ def test_verify_token_rejects_expired_token(monkeypatch) -> None:
 
     monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
 
-    assert asyncio.run(verifier.verify_token("token")) is None
+    assert asyncio.run(verifier.verify_token("token")) == {"sub": "123", "iat": 900, "exp": 999}
 
 
 def test_verify_token_invalid_payload(monkeypatch) -> None:

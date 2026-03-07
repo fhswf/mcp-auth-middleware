@@ -6,7 +6,7 @@ JWE authentication middleware for HTTP MCP servers. Encrypt user data end-to-end
 
 `mcp-auth-middleware` gives your MCP server two things:
 
-1. A middleware that decrypts a JWE Bearer token, validates `iat` and `exp`, enforces configured JWT scopes, and exposes the authenticated user's claims via `get_user()`.
+1. A middleware that decrypts a JWE Bearer token, enforces configured JWT scopes, and exposes the authenticated user's claims via `get_user()`.
 2. A CLI (`mcp-auth-middleware`) that generates RSA key pairs in JWKS format, outputs Kubernetes Secret YAML, and securely deletes local keys when you're done.
 
 The middleware also publishes:
@@ -190,7 +190,7 @@ claims = await verifier.verify_token(token_string)
 public_jwks = verifier.get_jwks()
 ```
 
-`verify_token()` returns `None` when token decryption fails or when `iat` / `exp` are invalid.
+`verify_token()` returns `None` when token decryption fails or when the decrypted payload is not a JSON object.
 
 ## Browser access
 
