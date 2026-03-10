@@ -11,16 +11,8 @@ load_dotenv()
 mcp = FastMCP("Example MCP Server")
 
 REQUIRED_SCOPES = [
-    {
-        "scope": "name",
-        "description": "Vor- und Nachname",
-        "description_en": "First and last name",
-    },
-    {
-        "scope": "email",
-        "description": "E-Mail-Adresse",
-        "description_en": "Email address",
-    },
+    {"scope": "name"},
+    {"scope": "email"},
 ]
 
 

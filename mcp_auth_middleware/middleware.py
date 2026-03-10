@@ -20,15 +20,9 @@ class ScopeDefinition:
     """A JWT field that must be present for a request to be accepted."""
 
     scope: str
-    description: str
-    description_en: str
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "scope": self.scope,
-            "description": self.description,
-            "description_en": self.description_en,
-        }
+        return {"scope": self.scope}
 
 
 class AuthUser(dict):
@@ -151,24 +145,14 @@ class JWKSAuthMiddleware(BaseHTTPMiddleware):
                 scope = raw_scope
             elif isinstance(raw_scope, Mapping):
                 scope_name = raw_scope.get("scope")
-                description = raw_scope.get("description")
-                description_en = raw_scope.get("description_en")
-                if not all(isinstance(value, str) for value in (scope_name, description, description_en)):
-                    raise ValueError(
-                        "Each configured scope must define string 'scope', 'description', and 'description_en' values."
-                    )
-                scope = ScopeDefinition(
-                    scope=scope_name.strip(),
-                    description=description.strip(),
-                    description_en=description_en.strip(),
-                )
+                if not isinstance(scope_name, str):
+                    raise ValueError("Each configured scope must define a string 'scope' value.")
+                scope = ScopeDefinition(scope=scope_name.strip())
             else:
                 raise TypeError("Each configured scope must be a ScopeDefinition or mapping.")
 
-            if not scope.scope or not scope.description or not scope.description_en:
-                raise ValueError(
-                    "Each configured scope must define non-empty 'scope', 'description', and 'description_en' values."
-                )
+            if not scope.scope:
+                raise ValueError("Each configured scope must define a non-empty 'scope' value.")
             if scope.scope in seen:
                 raise ValueError(f"Duplicate scope configured: {scope.scope}")
 

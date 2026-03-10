@@ -60,16 +60,8 @@ from mcp_auth_middleware import JWKSAuthMiddleware, get_user
 mcp = FastMCP("My Server")
 
 required_scopes = [
-    {
-        "scope": "name",
-        "description": "Vor- und Nachname",
-        "description_en": "First and last name",
-    },
-    {
-        "scope": "email",
-        "description": "E-Mail-Adresse",
-        "description_en": "Email address",
-    },
+    {"scope": "name"},
+    {"scope": "email"},
 ]
 
 
@@ -93,16 +85,8 @@ if __name__ == "__main__":
 ```json
 {
   "scopes_supported": [
-    {
-      "scope": "name",
-      "description": "Vor- und Nachname",
-      "description_en": "First and last name"
-    },
-    {
-      "scope": "email",
-      "description": "E-Mail-Adresse",
-      "description_en": "Email address"
-    }
+    { "scope": "name" },
+    { "scope": "email" }
   ]
 }
 ```
@@ -116,13 +100,7 @@ If a verified token is missing one or more configured fields, the middleware rej
 ```json
 {
   "error": "missing_scopes",
-  "missing": [
-    {
-      "scope": "email",
-      "description": "E-Mail-Adresse",
-      "description_en": "Email address"
-    }
-  ]
+  "missing": [{ "scope": "email" }]
 }
 ```
 
@@ -136,11 +114,7 @@ Attach it to any Starlette-based MCP server app:
 app.add_middleware(
     JWKSAuthMiddleware,
     scopes=[
-        {
-            "scope": "name",
-            "description": "Vor- und Nachname",
-            "description_en": "First and last name",
-        },
+        {"scope": "name"},
     ],
     verifier=None,
     jwks_path="/.well-known/jwks.json",
@@ -173,8 +147,6 @@ from mcp_auth_middleware import ScopeDefinition
 
 scope = ScopeDefinition(
     scope="email",
-    description="E-Mail-Adresse",
-    description_en="Email address",
 )
 ```
 

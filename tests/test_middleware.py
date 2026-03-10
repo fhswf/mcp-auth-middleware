@@ -6,16 +6,8 @@ from starlette.testclient import TestClient
 from mcp_auth_middleware.middleware import AuthUser, JWKSAuthMiddleware, ScopeDefinition, get_user
 
 SCOPES = [
-    {
-        "scope": "name",
-        "description": "Vor- und Nachname",
-        "description_en": "First and last name",
-    },
-    {
-        "scope": "email",
-        "description": "E-Mail-Adresse",
-        "description_en": "Email address",
-    },
+    {"scope": "name"},
+    {"scope": "email"},
 ]
 
 
@@ -79,11 +71,7 @@ def test_middleware_rejects_duplicate_scopes() -> None:
                     "description": "E-Mail-Adresse",
                     "description_en": "Email address",
                 },
-                ScopeDefinition(
-                    scope="email",
-                    description="E-Mail-Adresse",
-                    description_en="Email address",
-                ),
+                ScopeDefinition(scope="email"),
             ],
         )
     except ValueError as exc:
@@ -159,7 +147,26 @@ def test_middleware_handles_failed_verification() -> None:
     assert response.json() == {"error": "invalid_token"}
 
 
-def test_middleware_rejects_missing_scopes_with_descriptions() -> None:
+def test_middleware_serves_scope_only_even_with_legacy_scope_config() -> None:
+    app = build_app(
+        FakeVerifier(),
+        scopes=[
+            {
+                "scope": "email",
+                "description": "E-Mail-Adresse",
+                "description_en": "Email address",
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get("/.well-known/fhswf-scopes")
+
+    assert response.status_code == 200
+    assert response.json() == {"scopes_supported": [{"scope": "email"}]}
+
+
+def test_middleware_rejects_missing_scopes_with_scope_only_payload() -> None:
     app = build_app(FakeVerifier(claims={"name": "Dev"}))
 
     client = TestClient(app)
@@ -168,11 +175,5 @@ def test_middleware_rejects_missing_scopes_with_descriptions() -> None:
     assert response.status_code == 403
     assert response.json() == {
         "error": "missing_scopes",
-        "missing": [
-            {
-                "scope": "email",
-                "description": "E-Mail-Adresse",
-                "description_en": "Email address",
-            }
-        ],
+        "missing": [{"scope": "email"}],
     }
