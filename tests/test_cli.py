@@ -33,8 +33,19 @@ def test_generate_keys_writes_jwks_files(monkeypatch, tmp_path) -> None:
 
     assert private_path.exists()
     assert public_path.exists()
-    assert json.loads(private_path.read_text())["keys"][0]["kid"] == "thumbprint"
-    assert json.loads(public_path.read_text())["keys"][0]["kid"] == "thumbprint"
+    assert json.loads(private_path.read_text())["keys"][0] == {
+        "kty": "RSA",
+        "kid": "thumbprint",
+        "private": True,
+        "alg": "RSA-OAEP",
+        "use": "enc",
+    }
+    assert json.loads(public_path.read_text())["keys"][0] == {
+        "kty": "RSA",
+        "kid": "thumbprint",
+        "alg": "RSA-OAEP",
+        "use": "enc",
+    }
 
 
 def test_secure_delete_uses_shred(monkeypatch, tmp_path) -> None:

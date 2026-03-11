@@ -29,8 +29,15 @@ def generate_keys(output_dir: Path) -> tuple[Path, Path]:
     key = jwk.JWK.generate(kty="RSA", size=KEY_SIZE)
     key["kid"] = key.thumbprint()
 
-    private_jwks = {"keys": [json.loads(key.export_private())]}
-    public_jwks = {"keys": [json.loads(key.export_public())]}
+    private_key = json.loads(key.export_private())
+    public_key = json.loads(key.export_public())
+
+    for exported_key in (private_key, public_key):
+        exported_key["alg"] = "RSA-OAEP"
+        exported_key["use"] = "enc"
+
+    private_jwks = {"keys": [private_key]}
+    public_jwks = {"keys": [public_key]}
 
     private_key_path = output_dir / "mcp-private.json"
     public_key_path = output_dir / "mcp-public.json"

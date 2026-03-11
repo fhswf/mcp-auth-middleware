@@ -1,8 +1,22 @@
 import asyncio
 import json
+import uuid
+from pathlib import Path
+from types import SimpleNamespace
 
 import mcp_auth_middleware.verifier as verifier_module
 from mcp_auth_middleware.verifier import JWETokenVerifier
+
+
+def write_key_file(contents: dict | str) -> str:
+    temp_dir = Path(__file__).resolve().parent.parent / ".test-tmp" / str(uuid.uuid4())
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    path = Path(temp_dir) / "key.json"
+    if isinstance(contents, str):
+        path.write_text(contents)
+    else:
+        path.write_text(json.dumps(contents))
+    return str(path)
 
 
 def test_verifier_no_key_configured(monkeypatch) -> None:
@@ -14,17 +28,15 @@ def test_verifier_no_key_configured(monkeypatch) -> None:
     assert verifier.get_jwks() == {"keys": []}
 
 
-def test_verifier_invalid_json(monkeypatch, tmp_path) -> None:
-    path = tmp_path / "bad.json"
-    path.write_text("{bad-json")
-    monkeypatch.setenv("MCP_KEY_FILE_PATH", str(path))
+def test_verifier_invalid_json(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file("{bad-json"))
 
     verifier = JWETokenVerifier()
 
     assert verifier.is_configured is False
 
 
-def test_verifier_loads_first_jwks_key_and_filters_public_fields(monkeypatch, tmp_path) -> None:
+def test_verifier_loads_first_jwks_key_and_filters_public_fields(monkeypatch) -> None:
     jwks = {
         "keys": [
             {
@@ -38,9 +50,8 @@ def test_verifier_loads_first_jwks_key_and_filters_public_fields(monkeypatch, tm
             }
         ]
     }
-    path = tmp_path / "jwks.json"
-    path.write_text(json.dumps(jwks))
-    monkeypatch.setenv("MCP_KEY_FILE_PATH", str(path))
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file(jwks))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
 
     verifier = JWETokenVerifier()
 
@@ -59,46 +70,90 @@ def test_verifier_loads_first_jwks_key_and_filters_public_fields(monkeypatch, tm
     }
 
 
-def test_verify_token_returns_claims(monkeypatch, tmp_path) -> None:
-    path = tmp_path / "key.json"
-    path.write_text(json.dumps({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setenv("MCP_KEY_FILE_PATH", str(path))
+def test_verify_token_returns_claims(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+    monkeypatch.setattr(verifier_module.time, "time", lambda: 1000)
 
     verifier = JWETokenVerifier()
 
-    def fake_decrypt(token, jwk):
-        return b'{"data": {"sub": "123"}}'
+    def fake_decrypt(token, key, algorithms=None):
+        assert algorithms == ["RSA-OAEP"]
+        return SimpleNamespace(plaintext=b'{"data": {"sub": "123"}, "iat": 900, "exp": 1100}')
 
-    monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
 
     assert asyncio.run(verifier.verify_token("token")) == {"sub": "123"}
 
 
-def test_verify_token_invalid_payload(monkeypatch, tmp_path) -> None:
-    path = tmp_path / "key.json"
-    path.write_text(json.dumps({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setenv("MCP_KEY_FILE_PATH", str(path))
+def test_verify_token_rejects_missing_timestamps(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+    monkeypatch.setattr(verifier_module.time, "time", lambda: 1000)
 
     verifier = JWETokenVerifier()
 
-    def fake_decrypt(token, jwk):
-        return b"not json"
+    def fake_decrypt(token, key, algorithms=None):
+        return SimpleNamespace(plaintext=b'{"data": {"sub": "123"}}')
 
-    monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
 
     assert asyncio.run(verifier.verify_token("token")) is None
 
 
-def test_verify_token_decrypt_exception(monkeypatch, tmp_path) -> None:
-    path = tmp_path / "key.json"
-    path.write_text(json.dumps({"kty": "RSA", "kid": "kid1"}))
-    monkeypatch.setenv("MCP_KEY_FILE_PATH", str(path))
+def test_verify_token_rejects_future_iat(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+    monkeypatch.setattr(verifier_module.time, "time", lambda: 1000)
 
     verifier = JWETokenVerifier()
 
-    def fake_decrypt(token, jwk):
+    def fake_decrypt(token, key, algorithms=None):
+        return SimpleNamespace(plaintext=b'{"data": {"sub": "123"}, "iat": 1001, "exp": 1100}')
+
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
+
+    assert asyncio.run(verifier.verify_token("token")) is None
+
+
+def test_verify_token_rejects_expired_token(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+    monkeypatch.setattr(verifier_module.time, "time", lambda: 1000)
+
+    verifier = JWETokenVerifier()
+
+    def fake_decrypt(token, key, algorithms=None):
+        return SimpleNamespace(plaintext=b'{"data": {"sub": "123"}, "iat": 900, "exp": 999}')
+
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
+
+    assert asyncio.run(verifier.verify_token("token")) is None
+
+
+def test_verify_token_invalid_payload(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+
+    verifier = JWETokenVerifier()
+
+    def fake_decrypt(token, key, algorithms=None):
+        return SimpleNamespace(plaintext=b"not json")
+
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
+
+    assert asyncio.run(verifier.verify_token("token")) is None
+
+
+def test_verify_token_decrypt_exception(monkeypatch) -> None:
+    monkeypatch.setenv("MCP_KEY_FILE_PATH", write_key_file({"kty": "RSA", "kid": "kid1"}))
+    monkeypatch.setattr(verifier_module.jwk, "import_key", lambda raw_jwk: object())
+
+    verifier = JWETokenVerifier()
+
+    def fake_decrypt(token, key, algorithms=None):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(verifier_module.jwe, "decrypt", fake_decrypt)
+    monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)
 
     assert asyncio.run(verifier.verify_token("token")) is None
