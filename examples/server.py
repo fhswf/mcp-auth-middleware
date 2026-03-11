@@ -1,35 +1,37 @@
 """Minimal FastMCP server with mcp-auth-middleware authentication."""
 
-from fastmcp import FastMCP
+import uvicorn
 from dotenv import load_dotenv
+from fastmcp import FastMCP
+
+from mcp_auth_middleware import JWKSAuthMiddleware, get_user
 
 load_dotenv()
 
-from fastmcp_auth import JWKSAuthMiddleware, get_user
-import uvicorn
-
 mcp = FastMCP("Example MCP Server")
+
+REQUIRED_SCOPES = [
+    {"scope": "name"},
+    {"scope": "email"},
+]
 
 
 @mcp.tool()
 def whoami() -> str:
     """Return the authenticated user's identity."""
     user = get_user()
-    if user.sub:
-        return f"Authenticated as {user.sub} (email: {user.email})"
-    return "No authentication token provided."
+    return f"Authenticated as {user.name} (email: {user.email})"
 
 
 @mcp.tool()
 def greet(name: str) -> str:
     """Greet someone, mentioning who is asking."""
     user = get_user()
-    caller = user.name or "anonymous"
-    return f"Hello {name}! (requested by {caller})"
+    return f"Hello {name}! (requested by {user.name})"
 
 
 app = mcp.http_app()
-app.add_middleware(JWKSAuthMiddleware)
+app.add_middleware(JWKSAuthMiddleware, scopes=REQUIRED_SCOPES)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

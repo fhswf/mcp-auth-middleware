@@ -24,7 +24,7 @@ classifiers = [
     "Topic :: Security :: Cryptography",
 ]
 dependencies = [
-    "python-jose[cryptography]>=3.5.0",
+    "joserfc>=1.6.3",
     "starlette>=0.52.1",
     "jwcrypto>=1.5.6",
 ]
