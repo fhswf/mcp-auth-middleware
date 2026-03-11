@@ -78,7 +78,7 @@ def test_verify_token_returns_claims(monkeypatch) -> None:
     verifier = JWETokenVerifier()
 
     def fake_decrypt(token, key, algorithms=None):
-        assert algorithms == ["RSA-OAEP"]
+        assert algorithms == verifier_module.ALLOWED_JWE_ALGORITHMS
         return SimpleNamespace(plaintext=b'{"data": {"sub": "123"}, "iat": 900, "exp": 1100}')
 
     monkeypatch.setattr(verifier_module.jwe, "decrypt_compact", fake_decrypt)

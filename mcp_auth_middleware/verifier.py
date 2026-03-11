@@ -9,6 +9,8 @@ from joserfc import jwe, jwk
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_JWE_ALGORITHMS = ["RSA-OAEP", "A256GCM"]
+
 
 class JWETokenVerifier:
     """Verifies JWE tokens and exposes public key as JWKS."""
@@ -75,7 +77,7 @@ class JWETokenVerifier:
             return None
 
         try:
-            decrypted = jwe.decrypt_compact(token, self._key, algorithms=["RSA-OAEP"])
+            decrypted = jwe.decrypt_compact(token, self._key, algorithms=ALLOWED_JWE_ALGORITHMS)
             payload = json.loads(decrypted.plaintext)
             if not isinstance(payload, dict):
                 logger.debug("Token payload is not a JSON object")
