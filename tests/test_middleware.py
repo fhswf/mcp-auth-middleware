@@ -28,7 +28,9 @@ def build_app(
     verifier: FakeVerifier,
     scopes: list[dict[str, str]] | None = None,
     jwks_path: str = "/.well-known/jwks.json",
-    scopes_path: str = "/.well-known/fhswf-scopes",
+    openid_configuration_path: str = "/.well-known/openid-configuration",
+    scopes_path: str | None = None,
+    issuer: str | None = None,
 ) -> Starlette:
     async def me(request):
         return JSONResponse(dict(get_user()))
@@ -40,7 +42,9 @@ def build_app(
         verifier=verifier,
         scopes=scopes or SCOPES,
         jwks_path=jwks_path,
+        openid_configuration_path=openid_configuration_path,
         scopes_path=scopes_path,
+        issuer=issuer,
     )
     return app
 
@@ -91,17 +95,21 @@ def test_middleware_serves_jwks() -> None:
     assert response.json() == jwks
 
 
-def test_middleware_serves_scopes_with_cors_headers() -> None:
+def test_middleware_serves_openid_configuration_with_cors_headers() -> None:
     app = build_app(FakeVerifier())
 
     client = TestClient(app)
-    response = client.get("/.well-known/fhswf-scopes")
+    response = client.get("/.well-known/openid-configuration")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
     assert response.headers["access-control-allow-origin"] == "*"
     assert response.headers["access-control-allow-methods"] == "GET"
-    assert response.json() == {"scopes_supported": SCOPES}
+    assert response.json() == {
+        "issuer": "http://testserver",
+        "jwks_uri": "http://testserver/.well-known/jwks.json",
+        "scopes_supported": ["name", "email"],
+    }
 
 
 def test_middleware_sets_user_from_bearer_token() -> None:
@@ -147,7 +155,7 @@ def test_middleware_handles_failed_verification() -> None:
     assert response.json() == {"error": "invalid_token"}
 
 
-def test_middleware_serves_scope_only_even_with_legacy_scope_config() -> None:
+def test_middleware_serves_scope_names_even_with_legacy_scope_config() -> None:
     app = build_app(
         FakeVerifier(),
         scopes=[
@@ -160,10 +168,34 @@ def test_middleware_serves_scope_only_even_with_legacy_scope_config() -> None:
     )
 
     client = TestClient(app)
-    response = client.get("/.well-known/fhswf-scopes")
+    response = client.get("/.well-known/openid-configuration")
 
     assert response.status_code == 200
-    assert response.json() == {"scopes_supported": [{"scope": "email"}]}
+    assert response.json()["scopes_supported"] == ["email"]
+
+
+def test_middleware_supports_legacy_scopes_path_argument_as_configuration_path() -> None:
+    app = build_app(FakeVerifier(), scopes_path="/.well-known/custom-discovery")
+
+    client = TestClient(app)
+    response = client.get("/.well-known/custom-discovery")
+
+    assert response.status_code == 200
+    assert response.json()["jwks_uri"] == "http://testserver/.well-known/jwks.json"
+
+
+def test_middleware_uses_explicit_issuer_in_openid_configuration() -> None:
+    app = build_app(FakeVerifier(), issuer="https://middleware.example.com/")
+
+    client = TestClient(app)
+    response = client.get("/.well-known/openid-configuration")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "issuer": "https://middleware.example.com",
+        "jwks_uri": "https://middleware.example.com/.well-known/jwks.json",
+        "scopes_supported": ["name", "email"],
+    }
 
 
 def test_middleware_rejects_missing_scopes_with_scope_only_payload() -> None:

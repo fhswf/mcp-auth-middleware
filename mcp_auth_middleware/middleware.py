@@ -3,6 +3,7 @@ import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
+from urllib.parse import urljoin
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -53,17 +54,20 @@ class JWKSAuthMiddleware(BaseHTTPMiddleware):
         scopes: Sequence[ScopeDefinition | Mapping[str, str]] | None = None,
         verifier: JWETokenVerifier | None = None,
         jwks_path: str = "/.well-known/jwks.json",
-        scopes_path: str = "/.well-known/fhswf-scopes",
+        openid_configuration_path: str = "/.well-known/openid-configuration",
+        scopes_path: str | None = None,
+        issuer: str | None = None,
     ):
         super().__init__(app)
         self.verifier = verifier or JWETokenVerifier()
         self.jwks_path = jwks_path
-        self.scopes_path = scopes_path
+        self.openid_configuration_path = scopes_path or openid_configuration_path
+        self.issuer = issuer.rstrip("/") if issuer else None
         self.scopes = self._normalize_scopes(scopes)
         logger.info(
-            "JWKSAuthMiddleware initialized (jwks_path=%s, scopes_path=%s, key_configured=%s, required_scopes=%d)",
+            "JWKSAuthMiddleware initialized (jwks_path=%s, openid_configuration_path=%s, key_configured=%s, required_scopes=%d)",
             self.jwks_path,
-            self.scopes_path,
+            self.openid_configuration_path,
             self.verifier.is_configured,
             len(self.scopes),
         )
@@ -72,12 +76,9 @@ class JWKSAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path == self.jwks_path:
             logger.debug("Serving JWKS endpoint: %s %s", request.method, request.url.path)
             return JSONResponse(self.verifier.get_jwks())
-        if request.method == "GET" and request.url.path == self.scopes_path:
-            logger.debug("Serving scopes endpoint: %s %s", request.method, request.url.path)
-            return JSONResponse(
-                {"scopes_supported": [scope.as_dict() for scope in self.scopes]},
-                headers=self._cors_headers(),
-            )
+        if request.method == "GET" and request.url.path == self.openid_configuration_path:
+            logger.debug("Serving OpenID configuration endpoint: %s %s", request.method, request.url.path)
+            return JSONResponse(self._openid_configuration(request), headers=self._cors_headers())
 
         auth_header = request.headers.get("authorization", "")
         if not auth_header.lower().startswith("bearer "):
@@ -160,6 +161,14 @@ class JWKSAuthMiddleware(BaseHTTPMiddleware):
             normalized.append(scope)
 
         return tuple(normalized)
+
+    def _openid_configuration(self, request: Request) -> dict[str, Any]:
+        issuer = self.issuer or str(request.base_url).rstrip("/")
+        return {
+            "issuer": issuer,
+            "jwks_uri": urljoin(f"{issuer}/", self.jwks_path.lstrip("/")),
+            "scopes_supported": [scope.scope for scope in self.scopes],
+        }
 
     @staticmethod
     def _cors_headers() -> dict[str, str]:

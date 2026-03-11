@@ -12,7 +12,7 @@ JWE authentication middleware for HTTP MCP servers. Encrypt user data end-to-end
 The middleware also publishes:
 
 - `/.well-known/jwks.json` for public key discovery
-- `/.well-known/fhswf-scopes` for required scope discovery
+- `/.well-known/openid-configuration` for OpenID discovery
 
 ## Installation
 
@@ -78,16 +78,15 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-### 4. Discover required scopes
+### 4. OpenID discovery
 
-`GET /.well-known/fhswf-scopes` returns exactly the scopes configured on that server:
+`GET /.well-known/openid-configuration` returns the issuer, JWKS URI, and configured scopes:
 
 ```json
 {
-  "scopes_supported": [
-    { "scope": "name" },
-    { "scope": "email" }
-  ]
+  "issuer": "http://localhost:8000",
+  "jwks_uri": "http://localhost:8000/.well-known/jwks.json",
+  "scopes_supported": ["name", "email"]
 }
 ```
 
@@ -118,7 +117,8 @@ app.add_middleware(
     ],
     verifier=None,
     jwks_path="/.well-known/jwks.json",
-    scopes_path="/.well-known/fhswf-scopes",
+    openid_configuration_path="/.well-known/openid-configuration",
+    issuer=None,
 )
 ```
 
@@ -166,7 +166,7 @@ public_jwks = verifier.get_jwks()
 
 ## Browser access
 
-`/.well-known/fhswf-scopes` already includes CORS headers.
+`/.well-known/openid-configuration` already includes CORS headers.
 
 If browser clients also need `/.well-known/jwks.json`, add CORS middleware after `JWKSAuthMiddleware`:
 
