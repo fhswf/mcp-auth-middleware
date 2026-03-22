@@ -81,19 +81,20 @@ class JWKSAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(self._openid_configuration(request), headers=self._cors_headers())
 
         auth_header = request.headers.get("authorization", "")
+        if not auth_header:
+            logger.debug(
+                "No Authorization header, allowing unauthenticated request: %s %s",
+                request.method,
+                request.url.path,
+            )
+            return await call_next(request)
+
         if not auth_header.lower().startswith("bearer "):
-            if auth_header:
-                logger.warning(
-                    "Unsupported Authorization scheme: %s %s (expected 'Bearer')",
-                    request.method,
-                    request.url.path,
-                )
-            else:
-                logger.warning(
-                    "Missing Bearer token: %s %s",
-                    request.method,
-                    request.url.path,
-                )
+            logger.warning(
+                "Unsupported Authorization scheme: %s %s (expected 'Bearer')",
+                request.method,
+                request.url.path,
+            )
             return self._invalid_token_response()
 
         claims = await self.verifier.verify_token(auth_header[7:]) or {}
